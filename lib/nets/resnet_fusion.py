@@ -70,7 +70,7 @@ class resnet_fusion(Network):
       x2 = tf.slice(rois, [0, 3], [-1, 1], name="x2") / width
       y2 = tf.slice(rois, [0, 4], [-1, 1], name="y2") / height
       # Won't be backpropagated to rois anyway, but to save time
-      bboxes = tf.stop_gradient(tf.concat(1,[y1, x1, y2, x2]))
+      bboxes = tf.stop_gradient(tf.concat([y1, x1, y2, x2],axis=1))
       if cfg.RESNET.MAX_POOL:
         pre_pool_size = cfg.POOLING_SIZE * 2
         crops = tf.image.crop_and_resize(bottom, bboxes, tf.to_int32(batch_ids), [pre_pool_size, pre_pool_size],
@@ -114,16 +114,23 @@ class resnet_fusion(Network):
         resnet_utils.Block('block4', bottleneck, [(2048, 512, 1)] * 3)
       ]
     elif self._num_layers == 101:
-      blocks = [
-        resnet_utils.Block('block1', bottleneck,
-                           [(256, 64, 1)] * 2 + [(256, 64, 2)]),
-        resnet_utils.Block('block2', bottleneck,
-                           [(512, 128, 1)] * 3 + [(512, 128, 2)]),
-        # Use stride-1 for the last conv4 layer
-        resnet_utils.Block('block3', bottleneck,
-                           [(1024, 256, 1)] * 22 + [(1024, 256, 1)]),
-        resnet_utils.Block('block4', bottleneck, [(2048, 512, 1)] * 3)
-      ]
+#      blocks = [
+#        resnet_utils.Block('block1', bottleneck,
+#                           [(256, 64, 1)] * 2 + [(256, 64, 2)]),
+#        resnet_utils.Block('block2', bottleneck,
+#                           [(512, 128, 1)] * 3 + [(512, 128, 2)]),
+#        # Use stride-1 for the last conv4 layer
+#        resnet_utils.Block('block3', bottleneck,
+#                           [(1024, 256, 1)] * 22 + [(1024, 256, 1)]),
+#        resnet_utils.Block('block4', bottleneck, [(2048, 512, 1)] * 3)
+#      ]
+      resnet_v1_block = resnet_v1.resnet_v1_block
+      blocks = [resnet_v1_block('block1', base_depth=64, num_units=3, stride=2),
+                resnet_v1_block('block2', base_depth=128, num_units=4, stride=2),
+                resnet_v1_block('block3', base_depth=256, num_units=23, stride=1),
+                resnet_v1_block('block4', base_depth=512, num_units=3, stride=1),
+               ]
+                                                            
     elif self._num_layers == 152:
       blocks = [
         resnet_utils.Block('block1', bottleneck,
@@ -230,6 +237,7 @@ class resnet_fusion(Network):
                                   weights_initializer=initializer,
                                   padding='VALID', activation_fn=None, scope='rpn_cls_score')
       # change it so that the score has 2 as its channel size
+      print(rpn_cls_score)
       rpn_cls_score_reshape = self._reshape_layer(rpn_cls_score, 2, 'rpn_cls_score_reshape')
       rpn_cls_prob_reshape = self._softmax_layer(rpn_cls_score_reshape, "rpn_cls_prob_reshape")
       rpn_cls_prob = self._reshape_layer(rpn_cls_prob_reshape, self._num_anchors * 2, "rpn_cls_prob")
@@ -329,4 +337,4 @@ class resnet_fusion(Network):
         restorer_fc.restore(sess, pretrained_model)
 
         sess.run(tf.assign(self._variables_to_fix[self._resnet_scope + '/conv1/weights:0'], 
-                           tf.reverse(conv1_rgb, [False,False,True,False])))
+                           tf.reverse(conv1_rgb, [2]))) #[False,False,True,False])))

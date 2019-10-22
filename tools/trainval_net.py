@@ -16,7 +16,7 @@ import argparse
 import pprint
 import numpy as np
 import sys
-from tensorflow.contrib.slim.python.slim.nets.inception_v3 import inception_v3_base
+#from tensorflow.contrib.slim.python.slim.nets.inception_v3 import inception_v3_base
 
 
 import tensorflow as tf
@@ -26,7 +26,7 @@ from nets.resnet_v1_noise import resnet_noise
 from nets.resnet_fusion import resnet_fusion
 from nets.resnet_fusion_noise import resnet_fusion_noise
 #from model.image_embedding import inception_v3
-slim = tf.contrib.slim
+#slim = tf.contrib.slim
 
 def parse_args():
   """
