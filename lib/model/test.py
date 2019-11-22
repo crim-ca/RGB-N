@@ -109,9 +109,10 @@ def im_detect(sess, net, im):
   # seems to have height, width, and image scales
   # still not sure about the scale, maybe full image it is 1.
   blobs['im_info'] = np.array([[im_blob.shape[1], im_blob.shape[2], im_scales[0]]], dtype=np.float32)
-  try:
-    scores1, scores, bbox_pred, rois,feat,s = net.test_image(sess, blobs['data'], blobs['im_info'])
-  except:
+  #try:
+  #  scores1, scores, bbox_pred, rois,feat,s = net.test_image(sess, blobs['data'], blobs['im_info'])
+  #except:
+  if True:
     scores1, scores, bbox_pred, rois,feat,s = net.test_image(sess, blobs['data'],blobs['noise'], blobs['im_info'])
   boxes = rois[:, 1:5] / im_scales[0]
   # print(scores.shape, bbox_pred.shape, rois.shape, boxes.shape)

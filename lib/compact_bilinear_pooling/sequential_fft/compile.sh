@@ -8,7 +8,7 @@ g++ -std=c++11 -shared -o ./build/sequential_batch_fft.so \
   sequential_batch_fft_kernel.cu.o \
   sequential_batch_fft.cc \
   -I $TF_INC -fPIC  -L /usr/local/cuda-10.1/lib64/ \
-  -D_GLIBCXX_USE_CXX11_ABI=1 \
+  -D_GLIBCXX_USE_CXX11_ABI=0 \
   -lcudart -lcufft -L /usr/local/lib -L/home/ubuntu/ideas03/lib/python3.6/site-packages/tensorflow -l:libtensorflow_framework.so.1 
 
 rm -rf sequential_batch_fft_kernel.cu.o
