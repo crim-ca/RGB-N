@@ -212,13 +212,22 @@ class resnet_fusion(Network):
         #kernel = tf.get_variable('weights',
                               #shape=[5, 5, 3, 3],
                               #initializer=tf.constant_initializer(c))
-        conv = tf.nn.conv2d(self.noise, Wcnn, [1, 1, 1, 1], padding='SAME',name='srm')
+        convx= tf.nn.conv2d(self.noise, Wcnn, [1, 1, 1, 1], padding='SAME',name='srm')
+        conv=tf.Print(convx,[tf.shape(convx)],message="xx",summarize=-1)
+
+        # add self-consistency img as 2nd channel
+        #conv=tf.concat([conv,self._scimage],axis=3)
+
+
       self._layers['noise']=conv
       with slim.arg_scope(resnet_arg_scope(is_training=is_training)):
         #srm_conv = tf.nn.tanh(conv, name='tanh')
-        noise_net = resnet_utils.conv2d_same(conv, 64, 7, stride=2, scope='conv1')
-        noise_net = tf.pad(noise_net, [[0, 0], [1, 1], [1, 1], [0, 0]])
-        noise_net = slim.max_pool2d(noise_net, [3, 3], stride=2, padding='VALID', scope='pool1')
+        noise_netx = resnet_utils.conv2d_same(conv, 64, 7, stride=2, scope='conv1')
+        noise_net = tf.Print(noise_netx, [tf.shape(noise_netx)], message="noisenet")
+        noise_nety = tf.pad(noise_net, [[0, 0], [1, 1], [1, 1], [0, 0]])
+        noise_net = tf.Print(noise_nety, [tf.shape(noise_nety)], message="noisenetafterpad")
+        noise_netz = slim.max_pool2d(noise_net, [3, 3], stride=2, padding='VALID', scope='pool1')
+        noise_net = tf.Print(noise_netz, [tf.shape(noise_netz)], message="noisenetaftermaxpool")
         #net_sum=tf.concat(3,[net_conv4,noise_net])
         noise_conv4, _ = resnet_v1.resnet_v1(noise_net,
                                            blocks[0:-1],
@@ -233,7 +242,10 @@ class resnet_fusion(Network):
       rpn = slim.conv2d(net_conv4, 512, [3, 3], trainable=is_training, weights_initializer=initializer,
                         scope="rpn_conv/3x3")
       self._act_summaries.append(rpn)
-      rpn_cls_score = slim.conv2d(rpn, self._num_anchors * 2, [1, 1], trainable=is_training,
+
+      # e.g. self._num_anchors = 12
+
+      rpn_cls_score = slim.conv2d(rpn, self._num_anchors * 2, [1, 1], trainable=is_training,     # x2 because of bg/fg ?
                                   weights_initializer=initializer,
                                   padding='VALID', activation_fn=None, scope='rpn_cls_score')
       # change it so that the score has 2 as its channel size

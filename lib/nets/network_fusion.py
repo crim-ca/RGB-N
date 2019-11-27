@@ -62,8 +62,11 @@ class Network(object):
     
     return tf.summary.image('ground_truth', image)
 
-  def _add_noise_summary(self, noise, boxes):
+  def _add_noise_summary(self, noisex, boxes):
     # add back mean
+    # uncomment to inject selfconsistency
+    #noise,sc = tf.split(noisex, [3,3], 3)
+    noise=noisex
     noise += cfg.PIXEL_MEANS
     noise_channels = tf.unstack (noise, axis=-1)
     noise    = tf.stack ([noise_channels[2], noise_channels[1], noise_channels[0]], axis=-1)
@@ -95,13 +98,14 @@ class Network(object):
     tf.summary.histogram('TRAIN/' + var.op.name, var)
 
   def _reshape_layer(self, bottom, num_dim, name):
-    input_shape = tf.shape(bottom)    # NHWC
-    #input_shape = tf.Print(input_shapex,[input_shapex])
-    print(bottom)
-    print(input_shape)
-    print(num_dim)
-    print(name)
-    print(self._batch_size)
+    input_shapex = tf.shape(bottom)    # NHWC
+    input_shapey = tf.Print(input_shapex,[tf.shape(input_shapex)],message="botttom shape",summarize=5)
+    input_shape = tf.Print(input_shapey, [input_shapey], message="botttom content ",summarize=5)
+    #print(bottom)
+    #print(input_shape)
+    #print(num_dim)
+    #print(name)
+    #print(self._batch_size)
     #traceback.print_stack()
     with tf.variable_scope(name) as scope:
       # change the channel to the caffe format
@@ -110,7 +114,9 @@ class Network(object):
       reshaped = tf.reshape(to_caffe,
                             tf.concat([[self._batch_size], [num_dim,-1], [input_shape[2]]],axis=0))
       # then swap the channel back
-      to_tf = tf.transpose(reshaped, [0, 2, 3, 1])
+      to_tfx = tf.transpose(reshaped, [0, 2, 3, 1])
+      to_tfy = tf.Print(to_tfx, [tf.shape(to_tfx)], message="to_tf shape",summarize=5)
+      to_tf = tf.Print(to_tfy, [to_tfy], message="to_tf content ",summarize=5)
       return to_tf
 
   def _softmax_layer(self, bottom, name):
@@ -229,8 +235,11 @@ class Network(object):
                                           [tf.float32, tf.int32], name="generate_anchors")
       anchors.set_shape([None, 4])
       anchor_length.set_shape([])
-      self._anchors = anchors
-      self._anchor_length = anchor_length
+      self._anchors = tf.Print(anchors,[anchors,tf.shape(anchors), anchor_length,self._im_info],message="anchors!")
+
+
+      # h*w*12  ... *12 because --set ANCHOR_SCALES [8,16,32,64] ANCHOR_RATIOS [0.5,1,2]
+      self._anchor_length = anchor_length  # height=38 * width=50 *12 ...not used?
 
   def build_network(self, sess, is_training=True):
     raise NotImplementedError
@@ -349,6 +358,7 @@ class Network(object):
   def create_architecture(self, sess, mode, num_classes, tag=None,
                           anchor_scales=(8, 16, 32), anchor_ratios=(0.5, 1, 2)):
     self._image = tf.placeholder(tf.float32, shape=[self._batch_size, None, None, 3])
+#    self._scimage = tf.placeholder(tf.float32, shape=[self._batch_size, None, None, 3])
     self.noise= tf.placeholder(tf.float32, shape=[self._batch_size, None, None, 3])
     self._im_info = tf.placeholder(tf.float32, shape=[self._batch_size, 3])
     self._gt_boxes = tf.placeholder(tf.float32, shape=[None, 5])
@@ -425,14 +435,16 @@ class Network(object):
 
   # Extract the head feature maps, for example for vgg16 it is conv5_3
   # only useful during testing mode
-  def extract_head(self, sess, image,noise):
-    feed_dict = {self._image: image,self.noise: noise}
+  def extract_head(self, sess, image,noise): #,scimage):
+    feed_dict = {self._image: image,self.noise: noise} #, self._scimage:scimage}
     feat = sess.run(self._layers["head"], feed_dict=feed_dict)
     return feat
 
   # only useful during testing mode
+#  def test_image(self, sess, image,noise, scimage,im_info):
   def test_image(self, sess, image,noise, im_info):
-    feed_dict = {self._image: image,self.noise: noise,
+
+    feed_dict = {self._image: image,self.noise: noise,#self._scimage:scimage,
                  self._im_info: im_info}
     cls_score, cls_prob, bbox_pred, rois,feat,s = sess.run([self._predictions["cls_score"],
                                                      self._predictions['cls_prob'],
@@ -445,14 +457,14 @@ class Network(object):
     return cls_score, cls_prob, bbox_pred, rois,feat,s
 
   def get_summary(self, sess, blobs):
-    feed_dict = {self._image: blobs['data'], self.noise:blobs['noise'], self._im_info: blobs['im_info'],
+    feed_dict = {self._image: blobs['data'], self.noise:blobs['noise'], self._im_info: blobs['im_info'],#self._scimage:blobs["selfconsistency"],
                  self._gt_boxes: blobs['gt_boxes']}
     summary = sess.run(self._summary_op_val, feed_dict=feed_dict)
 
     return summary
 
   def train_step(self, sess, blobs, train_op):
-    feed_dict = {self._image: blobs['data'], self.noise:blobs['noise'], self._im_info: blobs['im_info'],
+    feed_dict = {self._image: blobs['data'], self.noise:blobs['noise'], self._im_info: blobs['im_info'],#self._scimage:blobs["selfconsistency"],
                  self._gt_boxes: blobs['gt_boxes']}
     rpn_cross_entropy,rpn_loss_box,cross_entropy,loss_box,loss, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                         self._losses['rpn_loss_box'],
@@ -464,7 +476,7 @@ class Network(object):
     return rpn_cross_entropy,rpn_loss_box, cross_entropy, loss_box, loss
 
   def train_step_with_summary(self, sess, blobs, train_op):
-    feed_dict = {self._image: blobs['data'], self.noise: blobs['noise'], self._im_info: blobs['im_info'],
+    feed_dict = {self._image: blobs['data'], self.noise: blobs['noise'], self._im_info: blobs['im_info'],#self._scimage:blobs["selfconsistency"],
                  self._gt_boxes: blobs['gt_boxes']}
     rpn_cross_entropy,rpn_loss_box, cross_entropy,loss_box,loss, summary, _ = sess.run([self._losses["rpn_cross_entropy"],
                                                                                  self._losses['rpn_loss_box'],
@@ -477,7 +489,7 @@ class Network(object):
     return rpn_cross_entropy,rpn_loss_box, cross_entropy,loss_box, loss, summary
 
   def train_step_no_return(self, sess, blobs, train_op):
-    feed_dict = {self._image: blobs['data'], self.noise: blobs['noise'], self._im_info: blobs['im_info'],
+    feed_dict = {self._image: blobs['data'], self.noise: blobs['noise'], self._im_info: blobs['im_info'],#self._scimage:blobs["selfconsistency"],
                  self._gt_boxes: blobs['gt_boxes']}
     sess.run([train_op], feed_dict=feed_dict)
 

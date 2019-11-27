@@ -14,7 +14,7 @@ import numpy as np
 import numpy.random as npr
 import cv2
 from model.config import cfg
-from utils.blob import prep_im_for_blob, im_list_to_blob,prep_noise_for_blob
+from utils.blob import prep_im_for_blob, im_list_to_blob,prep_noise_for_blob,prep_sc_for_blob
 import pdb
 
 def get_minibatch(roidb, num_classes):
@@ -28,10 +28,11 @@ def get_minibatch(roidb, num_classes):
     format(num_images, cfg.TRAIN.BATCH_SIZE)
 
   # Get the input image blob, formatted for caffe
-  im_blob,im_noise, im_scales = _get_image_blob(roidb, random_scale_inds)
+  im_blob,im_noise, im_selfconsistency, im_scales = _get_image_blob(roidb, random_scale_inds)
 
   blobs = {'data': im_blob}
   blobs['noise']=im_noise
+  blobs['selfconsistency'] = im_selfconsistency
   assert len(im_scales) == 1, "Single batch only"
   assert len(roidb) == 1, "Single batch only"
   
@@ -66,11 +67,17 @@ def _get_image_blob(roidb, scale_inds):
   num_images = len(roidb)
   processed_ims = []
   processed_noise = []
+  processed_sc = []
   im_scales = []
   for i in range(num_images):
     #print(roidb[i]['image'])
+    imname=roidb[i]['image']
+    scimname = imname+"_sc.png"
+
     im = cv2.imread(roidb[i]['image'])
-    
+    print("Loading "+scimname)
+    scim = cv2.imread(scimname)
+
     if roidb[i]['flipped']:
       im = im[:, ::-1, :]
     if roidb[i]['noised']:
@@ -114,9 +121,13 @@ def _get_image_blob(roidb, scale_inds):
     noise, im_scale = prep_noise_for_blob(im, cfg.PIXEL_MEANS, target_size,
                     cfg.TRAIN.MAX_SIZE)
     processed_noise.append(noise)
+    scim, im_scale = prep_sc_for_blob(scim, cfg.PIXEL_MEANS, target_size,
+                    cfg.TRAIN.MAX_SIZE)
+    processed_sc.append(scim)
 
   # Create a blob to hold the input images
   blob = im_list_to_blob(processed_ims)
   noise_blob = im_list_to_blob(processed_noise)
-  return blob,noise_blob, im_scales
+  sc_blob = im_list_to_blob(processed_sc)
+  return blob,noise_blob, sc_blob, im_scales
 
