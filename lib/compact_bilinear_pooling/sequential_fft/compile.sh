@@ -3,7 +3,7 @@ TF_INC=$(python3 -c 'import tensorflow as tf; print(tf.sysconfig.get_include())'
 /usr/local/cuda-10.0/bin/nvcc -std=c++11 -c -DNDEBUG -o sequential_batch_fft_kernel.cu.o \
   sequential_batch_fft_kernel.cu.cc \
   -I $TF_INC -D GOOGLE_CUDA=1 -x cu -Xcompiler -fPIC
-
+mkdir build
 g++ -std=c++11 -shared -DNDEBUG -o ./build/sequential_batch_fft.so \
   sequential_batch_fft_kernel.cu.o \
   sequential_batch_fft.cc \
